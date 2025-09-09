@@ -29,8 +29,13 @@ MODULE_EXPORT const char *obs_module_name(void)
 	return obs_module_text("SceneTreeView");
 }
 
+static bool frontend_loading_finished = false;
+ObsSceneTreeView *tree_view_dock = nullptr;
+
 bool obs_module_load()
 {
+	if(frontend_loading_finished)
+		return true;
 	blog(LOG_INFO, "[%s] loaded version %s", obs_module_name(), PROJECT_VERSION);
 
 	BPtr<char> stv_config_path = obs_module_config_path("");
@@ -39,26 +44,30 @@ bool obs_module_load()
 
 	QMainWindow *main_window = reinterpret_cast<QMainWindow*>(obs_frontend_get_main_window());
 	obs_frontend_push_ui_translation(obs_module_get_string);
-	obs_frontend_add_dock(new ObsSceneTreeView(main_window));
+	tree_view_dock = new ObsSceneTreeView(main_window);
+	tree_view_dock->setObjectName("obs_scene_tree_view_dock");
+	obs_frontend_add_dock_by_id("obs_scene_tree_view_dock","SceneTree",tree_view_dock);
 	obs_frontend_pop_ui_translation();
+	frontend_loading_finished = true;
 
 	return true;
 }
 
 MODULE_EXPORT void obs_module_unload()
-{}
+{
+}
 
 #define QT_UTF8(str) QString::fromUtf8(str)
 #define QT_TO_UTF8(str) str.toUtf8().constData()
 
 
 ObsSceneTreeView::ObsSceneTreeView(QMainWindow *main_window)
-    : QDockWidget(dynamic_cast<QWidget*>(main_window)),
+    : QWidget(),
       _add_scene_act(main_window->findChild<QAction*>("actionAddScene")),
       _remove_scene_act(main_window->findChild<QAction*>("actionRemoveScene")),
       _toggle_toolbars_scene_act(main_window->findChild<QAction*>("toggleListboxToolbars"))
 {
-	config_t *const global_config = obs_frontend_get_global_config();
+	config_t *const global_config = obs_frontend_get_app_config();
 	config_set_default_bool(global_config, "SceneTreeView", "ShowSceneIcons", false);
 	config_set_default_bool(global_config, "SceneTreeView", "ShowFolderIcons", false);
 
@@ -303,12 +312,12 @@ void ObsSceneTreeView::on_stvTree_customContextMenuRequested(const QPoint &pos)
 		toggleIconAction->setCheckable(true);
 
 		const auto configName = item->type() == StvItemModel::SCENE ? "ShowSceneIcons" : "ShowFolderIcons";
-		const bool showIcon = config_get_bool(obs_frontend_get_global_config(), "SceneTreeView", configName);
+		const bool showIcon = config_get_bool(obs_frontend_get_app_config(), "SceneTreeView", configName);
 
 		toggleIconAction->setChecked(showIcon);
 
 		auto toggleIcon = [this, showIcon, configName, item]() {
-			config_set_bool(obs_frontend_get_global_config(), "SceneTreeView", configName, !showIcon);
+			config_set_bool(obs_frontend_get_app_config(), "SceneTreeView", configName, !showIcon);
 			this->_scene_tree_items.SetIconVisibility(!showIcon, (StvItemModel::QITEM_TYPE)item->type());
 		};
 

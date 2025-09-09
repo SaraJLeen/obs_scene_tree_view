@@ -11,39 +11,16 @@ set(LIB_EXPORT_NAME "${LIBRARY_NAME}Targets")
 set(LIB_CONFIG_NAME "${LIBRARY_NAME}Config")
 set(LIB_VERSION_NAME "${LIB_CONFIG_NAME}Version")
 
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.28...3.30)
 project("${PROJECT_NAME}" VERSION 0.1.5)
 
-if(NOT DEFINED BUILD_IN_OBS)
-		set(BUILD_IN_OBS OFF)
-endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED Widgets)
 
-if(NOT ${BUILD_IN_OBS})
-		set(CMAKE_CXX_STANDARD 20)
+if(OS_LINUX OR OS_FREEBSD OR OS_OPENBSD)
+  find_package(Qt6 REQUIRED Gui)
 
-		find_package(libobs REQUIRED)
-		find_package(obs-frontend-api REQUIRED)
-
-		if(NOT DEFINED LIBOBS_PLUGIN_DESTINATION)
-				set(LIBOBS_PLUGIN_DESTINATION "lib/obs-plugins")
-		endif()
-
-		if(NOT DEFINED LIBOBS_PLUGIN_DATA_DESTINATION)
-				set(LIBOBS_PLUGIN_DATA_DESTINATION "share/obs/obs-plugins")
-		endif()
-
-		set(OBS_PLUGIN_LIB_DIR "${LIBOBS_PLUGIN_DESTINATION}" CACHE PATH "Path to obs plugins (relative to CMAKE_INSTALL_PREFIX)")
-		set(OBS_PLUGIN_DATA_DIR "${LIBOBS_PLUGIN_DATA_DESTINATION}" CACHE PATH "Path to scene tree view data dir (relative to CMAKE_INSTALL_PREFIX)")
-
-		if(WIN32)
-				message(WARNING "Building ${PROJECT_NAME} outside of OBS is currently not supported")
-		endif()
-endif()
-
-if(NOT TARGET OBS::obs-frontend-api)
-	add_library(OBS::obs-frontend-api ALIAS obs-frontend-api)
+  find_package(X11 REQUIRED)
 endif()
 
 set(LIB_SRC_FILES
@@ -69,39 +46,33 @@ set(CMAKE_AUTOMOC ON)
 ## Library
 add_library(${LIBRARY_NAME} SHARED ${LIB_SRC_FILES} ${VT_UI_HEADERS})
 add_library("${NAMESPACE_NAME}::${LIBRARY_NAME}" ALIAS ${LIBRARY_NAME})
-target_compile_options(${LIBRARY_NAME} PUBLIC $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall -Wextra>)
 
 set_target_properties(${LIBRARY_NAME} PROPERTIES PREFIX "")
 
 target_include_directories(${LIBRARY_NAME}
-		PUBLIC
+		PRIVATE
 				"$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 				"$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
 				"$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>"
-
-		PRIVATE
 )
 
-target_link_libraries(${LIBRARY_NAME}
-		PUBLIC
-				OBS::libobs
-				OBS::obs-frontend-api
-				Qt6::Widgets
+target_compile_options(${LIBRARY_NAME} PRIVATE $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:-Wall -Wextra>)
 
-		PRIVATE
+target_link_libraries(
+  ${LIBRARY_NAME}
+  PRIVATE
+    OBS::libobs
+    OBS::frontend-api
+    Qt::Widgets
 )
 
 
-##########################################
-## Install files
-if(${BUILD_IN_OBS})
-		install_obs_plugin_with_data(${LIBRARY_NAME} data)
-else()
-		install(TARGETS ${LIBRARY_NAME}
-				EXPORT ${LIB_EXPORT_NAME}
-				LIBRARY DESTINATION "${OBS_PLUGIN_LIB_DIR}"
-				ARCHIVE DESTINATION "${OBS_PLUGIN_LIB_DIR}")
-
-		install(DIRECTORY "data/locale"
-				DESTINATION "${OBS_PLUGIN_DATA_DIR}/${PROJECT_NAME}")
-endif()
+set_target_properties_obs(
+  ${LIBRARY_NAME}
+  PROPERTIES FOLDER plugins/${LIBRARY_NAME}
+             PREFIX ""
+             AUTOMOC ON
+             AUTOUIC ON
+             AUTORCC ON
+             AUTOUIC_SEARCH_PATHS forms
+)
