@@ -1,3 +1,9 @@
+This is Saralene's fork of the Scene Tree Folder plugin.
+All this fork does is make the plugin work in OBS 32 and later.
+It won't even size correctly or compile to the correct folder.
+It works as a drop-in replacement for OBS 32+. That's it.
+No support will be offered, but I hope it's useful.
+
 # Scene Tree Folder plugin for OBS Studio
 
 Plugin for OBS that adds a scene tree folder dock
